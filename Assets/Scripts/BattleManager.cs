@@ -13,87 +13,74 @@ public class BattleManager : MonoSingleton<BattleManager>
     public static BattleManager Instance;
 
     public PlayerData playerData;
-    public PlayerData enemyData;    //数据
+    public PlayerData enemyData;
 
     public List<Card> playerDeckList = new List<Card>();
-    public List<Card> enemyDeckList = new List<Card>();    //卡组
+    public List<Card> enemyDeckList = new List<Card>();
 
-    public GameObject cardPrefad;      //卡牌
+    public GameObject cardPrefad;
 
     public Transform playerHand;
-    public Transform enemyHand;    //手牌
+    public Transform enemyHand;
 
     public GameObject[] playerBlocks;
-    public GameObject[] enemyBlocks;     //格子
+    public GameObject[] enemyBlocks;
 
     public GameObject playerIcon;
-    public GameObject enemyIcon;    //头像
+    public GameObject enemyIcon;
 
     public GamePhase GamePhase = GamePhase.gameStart;
 
     public UnityEvent phaseChangeEvent = new UnityEvent();
 
-    public int[] SummonCountMax = new int[2];// 0 player  , 1 enemy
-    private int[] SummonCounter =  new int[2];
+    public int[] SummonCountMax = new int[2];
+    private int[] SummonCounter = new int[2];
 
     private GameObject waitingMonster;
-    private int waitingPlayer;
+    private int waitingPlayer = -1;
 
     private void Awake()
     {
         Instance = this;
     }
+
     void Start()
     {
         GameStart();
     }
 
-    void Update()
-    {
-        // 可以在这里加入其他逻辑，例如监听回合结束的条件
-    }
-
-    // 游戏流程
-    // 开始游戏：加载数据，卡组洗牌，初始手牌
-    // 回合结束，游戏阶段
-
     public void GameStart()
     {
-        ReadDeck(); // 读取卡组数据
-        ShuffletDeck(0); // 洗玩家卡组
-        ShuffletDeck(1); // 洗敌人卡组
+        ReadDeck();
+        ShuffletDeck(0);
+        ShuffletDeck(1);
 
-        // 玩家和敌人各自抽卡 3 张
         DrawCard(0, 3);
         DrawCard(1, 3);
 
         GamePhase = GamePhase.playerDraw;
 
-        SummonCounter = SummonCountMax;
+        SummonCounter = (int[])SummonCountMax.Clone(); // 深拷贝
     }
 
     public void ReadDeck()
     {
-        // 加载玩家卡组
         for (int i = 0; i < playerData.playerDeck.Length; i++)
         {
-            if (playerData.playerDeck[i] != 0)
+            if (playerData.playerDeck[i] > 0)
             {
-                int count = playerData.playerDeck[i];
-                for (int j = 0; j < count; j++)
+                for (int j = 0; j < playerData.playerDeck[i]; j++)
                 {
                     playerDeckList.Add(playerData.CardStore.CopyCard(i));
                 }
             }
         }
 
-        // 加载敌人卡组
         for (int i = 0; i < enemyData.playerDeck.Length; i++)
         {
-            if (enemyData.playerDeck[i] != 0)
+            if (enemyData.playerDeck[i] > 0)
             {
-                int count = enemyData.playerDeck[i];
-                for (int j = 0; j < count; j++)
+                for (int j = 0; j < enemyData.playerDeck[i]; j++)
                 {
                     enemyDeckList.Add(enemyData.CardStore.CopyCard(i));
                 }
@@ -101,53 +88,36 @@ public class BattleManager : MonoSingleton<BattleManager>
         }
     }
 
-    public void ShuffletDeck(int _player)  // 0为玩家，1为敌人
+    public void ShuffletDeck(int _player)
     {
-        List<Card> shuffletDeck = new List<Card>();
-        if (_player == 0)
-        {
-            shuffletDeck = playerDeckList;
-        }
-        else if (_player == 1)
-        {
-            shuffletDeck = enemyDeckList;
-        }
+        List<Card> deck = (_player == 0) ? playerDeckList : enemyDeckList;
 
-        // 洗牌
-        for (int i = 0; i < shuffletDeck.Count; i++)
+        for (int i = 0; i < deck.Count; i++)
         {
-            int rad = Random.Range(0, shuffletDeck.Count);
-            Card temp = shuffletDeck[i];
-            shuffletDeck[i] = shuffletDeck[rad];
-            shuffletDeck[rad] = temp;
+            int r = Random.Range(0, deck.Count);
+            (deck[i], deck[r]) = (deck[r], deck[i]);
         }
     }
 
     public void DrawCard(int _player, int _count)
     {
-        List<Card> drawDeck = new List<Card>();
-        Transform hand = transform;
-        if (_player == 0)
-        {
-            drawDeck = playerDeckList;
-            hand = playerHand;
-        }
-        else if (_player == 1)
-        {
-            drawDeck = enemyDeckList;
-            hand = enemyHand;
-        }
+        List<Card> drawDeck = (_player == 0) ? playerDeckList : enemyDeckList;
+        Transform hand = (_player == 0) ? playerHand : enemyHand;
 
         for (int i = 0; i < _count; i++)
         {
-            // 检查手牌数是否大于 6 张，如果大于6张，则不抽卡
-            if (hand.childCount >= 6)
+            if (drawDeck.Count == 0)
             {
-                Debug.Log("手牌已满，不能再抽卡！");
+                Debug.LogWarning((_player == 0 ? "玩家" : "敌人") + "卡组已空，无法抽卡");
                 return;
             }
 
-            // 抽卡
+            if (hand.childCount >= 6)
+            {
+                Debug.Log((_player == 0 ? "玩家" : "敌人") + "手牌已满！");
+                return;
+            }
+
             GameObject card = Instantiate(cardPrefad, hand);
             card.GetComponent<CardDisplay>().card = drawDeck[0];
             card.GetComponent<BattleCard>().playerID = _player;
@@ -162,17 +132,20 @@ public class BattleManager : MonoSingleton<BattleManager>
 
     public void TurnEnd()
     {
+        // 清除未完成的召唤状态
+        CancelSummonState();
+
         if (GamePhase == GamePhase.playerAction)
         {
             GamePhase = GamePhase.enemyDraw;
             phaseChangeEvent.Invoke();
-            OnEnemyDraw();  // 敌方回合自动抽卡
+            OnEnemyDraw();
         }
         else if (GamePhase == GamePhase.enemyAction)
         {
             GamePhase = GamePhase.playerDraw;
             phaseChangeEvent.Invoke();
-            OnPlayerDraw();  // 玩家回合自动抽卡
+            OnPlayerDraw();
         }
     }
 
@@ -180,8 +153,8 @@ public class BattleManager : MonoSingleton<BattleManager>
     {
         if (GamePhase == GamePhase.playerDraw)
         {
-            DrawCard(0, 1);  // 玩家自动抽卡
-            SummonCounter[0] = SummonCountMax[0];  // 玩家召唤次数刷新
+            DrawCard(0, 1);
+            SummonCounter[0] = SummonCountMax[0];
             GamePhase = GamePhase.playerAction;
             phaseChangeEvent.Invoke();
         }
@@ -191,80 +164,90 @@ public class BattleManager : MonoSingleton<BattleManager>
     {
         if (GamePhase == GamePhase.enemyDraw)
         {
-            DrawCard(1, 1);  // 敌人自动抽卡
-            SummonCounter[1] = SummonCountMax[1];  // 敌人召唤次数刷新
+            DrawCard(1, 1);
+            SummonCounter[1] = SummonCountMax[1];
             GamePhase = GamePhase.enemyAction;
             phaseChangeEvent.Invoke();
         }
     }
 
-
-    /// <summary>
-    /// 发出召唤请求
-    /// </summary>
-    /// <param name="_player"></param>
-    /// <param name="_monster"></param>
-
-    public void SummonRequest(int _player,GameObject _monster)
+    public void SummonRequest(int _player, GameObject _monster)
     {
-        GameObject[] blocks;
-        bool hasEmptyBlock = false;
-        if (_player == 0)
+        if (waitingMonster != null)
         {
-            blocks = playerBlocks;
+            Debug.Log("已有卡牌等待召唤，忽略新的召唤请求。");
+            return;
         }
-        else
-        {
-            blocks = enemyBlocks;
-        }
+
+        GameObject[] blocks = (_player == 0) ? playerBlocks : enemyBlocks;
+        bool hasEmpty = false;
+
         if (SummonCounter[_player] > 0)
         {
             foreach (var block in blocks)
             {
-                if(block.GetComponent<Block>().card == null)
+                if (block.GetComponent<Block>().card == null)
                 {
-                    block.GetComponent<Block>().SummonBlock.SetActive(true); //等待召唤显示
-                    hasEmptyBlock = true;
-                   
-
+                    block.GetComponent<Block>().SummonBlock.SetActive(true);
+                    hasEmpty = true;
                 }
             }
         }
-        if (hasEmptyBlock)
+
+        if (hasEmpty)
         {
             waitingMonster = _monster;
             waitingPlayer = _player;
-        }
-    }
-
-    /// <summary>
-    /// 召唤确认
-    /// </summary>
-    /// <param name="_block"></param>
-    public void SummonConfirm(Transform _block)
-    {
-        Summon(waitingPlayer, waitingMonster, _block);
-        GameObject[] blocks;
-        if(waitingPlayer == 0)
-        {
-            blocks = playerBlocks;
+            Debug.Log("等待召唤：" + _monster.name);
         }
         else
         {
-            blocks = enemyBlocks;
-        }
-        foreach (var block in blocks)
-        {
-            block.GetComponent<Block>().SummonBlock.SetActive(false); //关闭召唤显示
+            Debug.Log("无法召唤：没有空格或次数不足！");
         }
     }
 
-    public void Summon(int _player,GameObject _monster,Transform _block)
+    public void SummonConfirm(Transform _block)
+    {
+        if (waitingMonster == null)
+        {
+            Debug.LogWarning("没有等待召唤的卡牌！");
+            return;
+        }
+
+        Summon(waitingPlayer, waitingMonster, _block);
+
+        GameObject[] blocks = (waitingPlayer == 0) ? playerBlocks : enemyBlocks;
+        foreach (var block in blocks)
+        {
+            block.GetComponent<Block>().SummonBlock.SetActive(false);
+        }
+
+        waitingMonster = null;
+        waitingPlayer = -1;
+    }
+
+    public void Summon(int _player, GameObject _monster, Transform _block)
     {
         _monster.transform.SetParent(_block);
         _monster.transform.localPosition = Vector3.zero;
         _monster.GetComponent<BattleCard>().state = BattleCardState.inBlock;
         _block.GetComponent<Block>().card = _monster;
         SummonCounter[_player]--;
+        Debug.Log("召唤成功：" + _monster.name);
+    }
+
+    public void CancelSummonState()
+    {
+        waitingMonster = null;
+        waitingPlayer = -1;
+
+        foreach (var block in playerBlocks)
+        {
+            block.GetComponent<Block>().SummonBlock.SetActive(false);
+        }
+        foreach (var block in enemyBlocks)
+        {
+            block.GetComponent<Block>().SummonBlock.SetActive(false);
+        }
     }
 }

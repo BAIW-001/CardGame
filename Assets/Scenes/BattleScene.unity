@@ -1784,7 +1784,7 @@ MonoBehaviour:
   phaseChangeEvent:
     m_PersistentCalls:
       m_Calls: []
-  SummonCountMax: 0200000002000000
+  SummonCountMax: 0600000006000000
 --- !u!4 &893034131
 Transform:
   m_ObjectHideFlags: 0
