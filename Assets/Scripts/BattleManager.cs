@@ -33,6 +33,12 @@ public class BattleManager : MonoSingleton<BattleManager>
 
     public UnityEvent phaseChangeEvent = new UnityEvent();
 
+    public int[] SummonCountMax = new int[2];// 0 player  , 1 enemy
+    private int[] SummonCounter =  new int[2];
+
+    private GameObject waitingMonster;
+    private int waitingPlayer;
+
     private void Awake()
     {
         Instance = this;
@@ -62,6 +68,8 @@ public class BattleManager : MonoSingleton<BattleManager>
         DrawCard(1, 3);
 
         GamePhase = GamePhase.playerDraw;
+
+        SummonCounter = SummonCountMax;
     }
 
     public void ReadDeck()
@@ -142,6 +150,7 @@ public class BattleManager : MonoSingleton<BattleManager>
             // 抽卡
             GameObject card = Instantiate(cardPrefad, hand);
             card.GetComponent<CardDisplay>().card = drawDeck[0];
+            card.GetComponent<BattleCard>().playerID = _player;
             drawDeck.RemoveAt(0);
         }
     }
@@ -172,6 +181,7 @@ public class BattleManager : MonoSingleton<BattleManager>
         if (GamePhase == GamePhase.playerDraw)
         {
             DrawCard(0, 1);  // 玩家自动抽卡
+            SummonCounter[0] = SummonCountMax[0];  // 玩家召唤次数刷新
             GamePhase = GamePhase.playerAction;
             phaseChangeEvent.Invoke();
         }
@@ -182,8 +192,79 @@ public class BattleManager : MonoSingleton<BattleManager>
         if (GamePhase == GamePhase.enemyDraw)
         {
             DrawCard(1, 1);  // 敌人自动抽卡
+            SummonCounter[1] = SummonCountMax[1];  // 敌人召唤次数刷新
             GamePhase = GamePhase.enemyAction;
             phaseChangeEvent.Invoke();
         }
+    }
+
+
+    /// <summary>
+    /// 发出召唤请求
+    /// </summary>
+    /// <param name="_player"></param>
+    /// <param name="_monster"></param>
+
+    public void SummonRequest(int _player,GameObject _monster)
+    {
+        GameObject[] blocks;
+        bool hasEmptyBlock = false;
+        if (_player == 0)
+        {
+            blocks = playerBlocks;
+        }
+        else
+        {
+            blocks = enemyBlocks;
+        }
+        if (SummonCounter[_player] > 0)
+        {
+            foreach (var block in blocks)
+            {
+                if(block.GetComponent<Block>().card == null)
+                {
+                    block.GetComponent<Block>().SummonBlock.SetActive(true); //等待召唤显示
+                    hasEmptyBlock = true;
+                   
+
+                }
+            }
+        }
+        if (hasEmptyBlock)
+        {
+            waitingMonster = _monster;
+            waitingPlayer = _player;
+        }
+    }
+
+    /// <summary>
+    /// 召唤确认
+    /// </summary>
+    /// <param name="_block"></param>
+    public void SummonConfirm(Transform _block)
+    {
+        Summon(waitingPlayer, waitingMonster, _block);
+        GameObject[] blocks;
+        if(waitingPlayer == 0)
+        {
+            blocks = playerBlocks;
+        }
+        else
+        {
+            blocks = enemyBlocks;
+        }
+        foreach (var block in blocks)
+        {
+            block.GetComponent<Block>().SummonBlock.SetActive(false); //关闭召唤显示
+        }
+    }
+
+    public void Summon(int _player,GameObject _monster,Transform _block)
+    {
+        _monster.transform.SetParent(_block);
+        _monster.transform.localPosition = Vector3.zero;
+        _monster.GetComponent<BattleCard>().state = BattleCardState.inBlock;
+        _block.GetComponent<Block>().card = _monster;
+        SummonCounter[_player]--;
     }
 }
