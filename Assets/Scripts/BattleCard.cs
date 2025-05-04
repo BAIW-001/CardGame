@@ -1,42 +1,23 @@
-using System.Collections;
-using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.EventSystems;
 
 public enum BattleCardState
 {
-    inHand,inBlock
+    inHand, inBlock
 }
 
-public class BattleCard : MonoBehaviour,IPointerDownHandler
+public class BattleCard : MonoBehaviour, IPointerDownHandler
 {
     public int playerID;
     public BattleCardState state = BattleCardState.inHand;
+
     public void OnPointerDown(PointerEventData eventData)
     {
-        //当在手牌点击时，发起召唤请求
-        if(GetComponent<CardDisplay>().card is MonsterCard)
+        // 只有手牌中的怪物卡可以召唤
+        if (state == BattleCardState.inHand &&
+            GetComponent<CardDisplay>().card is MonsterCard)
         {
-            if (state == BattleCardState.inHand)
-            {
-                BattleManager.Instance.SummonRequest(playerID, gameObject);
-            }
-            
+            BattleManager.Instance.SummonRequest(playerID, gameObject);
         }
-        
-
-        //当在场上点击时，发起攻击请求
-    }
-
-    // Start is called before the first frame update
-    void Start()
-    {
-        
-    }
-
-    // Update is called once per frame
-    void Update()
-    {
-        
     }
 }
