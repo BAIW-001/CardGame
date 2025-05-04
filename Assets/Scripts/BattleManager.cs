@@ -1,14 +1,17 @@
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.Events;
 
 public enum GamePhase
 {
     gameStart, playerDraw, playerAction, enemyDraw, enemyAction
 }
 
-public class BattleManager : MonoBehaviour
+public class BattleManager : MonoSingleton<BattleManager>
 {
+    public static BattleManager Instance;
+
     public PlayerData playerData;
     public PlayerData enemyData;    //数据
 
@@ -28,6 +31,12 @@ public class BattleManager : MonoBehaviour
 
     public GamePhase GamePhase = GamePhase.gameStart;
 
+    public UnityEvent phaseChangeEvent = new UnityEvent();
+
+    private void Awake()
+    {
+        Instance = this;
+    }
     void Start()
     {
         GameStart();
@@ -147,11 +156,13 @@ public class BattleManager : MonoBehaviour
         if (GamePhase == GamePhase.playerAction)
         {
             GamePhase = GamePhase.enemyDraw;
+            phaseChangeEvent.Invoke();
             OnEnemyDraw();  // 敌方回合自动抽卡
         }
         else if (GamePhase == GamePhase.enemyAction)
         {
             GamePhase = GamePhase.playerDraw;
+            phaseChangeEvent.Invoke();
             OnPlayerDraw();  // 玩家回合自动抽卡
         }
     }
@@ -162,6 +173,7 @@ public class BattleManager : MonoBehaviour
         {
             DrawCard(0, 1);  // 玩家自动抽卡
             GamePhase = GamePhase.playerAction;
+            phaseChangeEvent.Invoke();
         }
     }
 
@@ -171,6 +183,7 @@ public class BattleManager : MonoBehaviour
         {
             DrawCard(1, 1);  // 敌人自动抽卡
             GamePhase = GamePhase.enemyAction;
+            phaseChangeEvent.Invoke();
         }
     }
 }
