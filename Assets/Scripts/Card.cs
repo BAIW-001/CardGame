@@ -14,12 +14,14 @@ public class MonsterCard : Card
     public int attack;
     public int healthPoint;
     public int healthPointMax;
+    public int attackTime;
 
     public MonsterCard(int _id, string _cardName, int _attack, int _healthPointMax) : base(_id, _cardName)
     {
         this.attack = _attack;
         this.healthPoint = _healthPointMax;
         this.healthPointMax = _healthPointMax;
+        attackTime = 2;
     }
 }
 

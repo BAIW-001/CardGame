@@ -1,5 +1,6 @@
 using System.Collections;
 using System.Collections.Generic;
+using Unity.VisualScripting;
 using UnityEngine;
 using UnityEngine.Events;
 
@@ -44,6 +45,9 @@ public class BattleManager : MonoSingleton<BattleManager>
 
     private GameObject waitingMonster;
     private int waitingPlayer;
+
+    private GameObject attackingMonster;
+    public GameObject attackArrow;
 
     void Start()
     {
@@ -117,12 +121,24 @@ public class BattleManager : MonoSingleton<BattleManager>
                 return;
             }
 
+            // 实例化卡牌预制体并设置为手牌子物体
             GameObject cardObj = Instantiate(cardPrefad, hand);
-            cardObj.GetComponent<CardDisplay>().card = deck[0];
-            cardObj.GetComponent<BattleCard>().playerID = _player;
+
+            // 取出卡组顶牌
+            Card cardData = deck[0];
+
+            // 设置 CardDisplay 中的 card 属性
+            cardObj.GetComponent<CardDisplay>().card = cardData;
+
+            // 初始化 BattleCard 信息（包含攻击次数、playerID 等）
+            BattleCard battleCard = cardObj.GetComponent<BattleCard>();
+            battleCard.Init(cardData, _player);
+
+            // 从卡组中移除
             deck.RemoveAt(0);
         }
     }
+
 
     /// <summary>
     /// 回合结束按钮：只能在玩家或敌方行动阶段按
@@ -228,7 +244,111 @@ public class BattleManager : MonoSingleton<BattleManager>
         _block.GetComponent<Block>().card = _monster;
         SummonCounter[_player]--;
         UIManager.Instance.ShowTip("召唤成功！");
+
+        MonsterCard mc = _monster.GetComponent<CardDisplay>().card as MonsterCard;
+        _monster.GetComponent<BattleCard>().AttackCount = mc.attackTime;
+        _monster.GetComponent<BattleCard>().ResetAttack();
     }
+
+    /// <summary>
+    /// 发起攻击请求（当前玩家、攻击者）
+    /// </summary>
+    public void AttackRequst(int _player, GameObject _monster)
+    {
+        if (!IsPlayerTurn(_player))
+        {
+            UIManager.Instance.ShowTip("不是你的回合，无法攻击！");
+            return;
+        }
+
+        BattleCard attackerCard = _monster.GetComponent<BattleCard>();
+
+        if (attackerCard.state != BattleCardState.inBlock)
+        {
+            UIManager.Instance.ShowTip("该卡牌不在战斗区域，不能攻击！");
+            return;
+        }
+
+        // 启动攻击指示器（例如箭头）
+        attackArrow.SetActive(true);
+        attackArrow.transform.position = _monster.transform.position;
+
+        attackingMonster = _monster;
+        UIManager.Instance.ShowTip("请选择一个敌方目标进行攻击！");
+    }
+
+    /// <summary>
+    /// 选择目标并确认攻击
+    /// block 参数来自被点击的目标格子
+    /// </summary>
+    public void AttackConfirm(Transform _targetBlock)
+    {
+        if (attackingMonster == null)
+        {
+            UIManager.Instance.ShowTip("未选择攻击者！");
+            return;
+        }
+
+        GameObject targetCard = _targetBlock.GetComponent<Block>().card;
+        if (targetCard == null)
+        {
+            UIManager.Instance.ShowTip("目标格子为空，无法攻击！");
+            return;
+        }
+
+        // 停用箭头
+        attackArrow.SetActive(false);
+
+        // 执行攻击
+        Attack(attackingMonster, targetCard);
+
+        // 攻击后清空攻击者
+        attackingMonster = null;
+    }
+
+    /// <summary>
+    /// 攻击逻辑
+    /// </summary>
+    public void Attack(GameObject attacker, GameObject target)
+    {
+        BattleCard atkCard = attacker.GetComponent<BattleCard>();
+        BattleCard tgtCard = target.GetComponent<BattleCard>();
+
+        int damage = 0;  // 在方法开始时定义 damage
+
+        // 确保攻击者和目标卡片是 MonsterCard 类型
+        if (atkCard.card is MonsterCard atkMonster && tgtCard.card is MonsterCard tgtMonster)
+        {
+            damage = atkMonster.attack;  // 使用 MonsterCard 的 attack
+
+            tgtMonster.healthPoint -= damage;  // 使用 MonsterCard 的 healthPoint
+        }
+        else
+        {
+            Debug.LogWarning("卡片类型不匹配，无法攻击！");
+        }
+
+        // 显示攻击信息
+        UIManager.Instance.ShowTip($"{atkCard.card.cardName} 对 {tgtCard.card.cardName} 造成 {damage} 点伤害！");
+
+        // 如果目标死亡，销毁目标卡牌
+        if (tgtCard.card is MonsterCard tgtMonsterDeath && tgtMonsterDeath.healthPoint <= 0)
+        {
+            UIManager.Instance.ShowTip($"{tgtCard.card.cardName} 被击败！");
+            target.transform.SetParent(null);
+            Destroy(target);
+
+            // 清空所在格子的引用
+            Transform block = target.transform.parent;
+            if (block != null)
+            {
+                block.GetComponent<Block>().card = null;
+            }
+        }
+
+        // TODO：如果攻击者只能攻击一次，可以加入状态限制
+    }
+
 
     /// <summary>
     /// 判断是否是当前玩家的回合

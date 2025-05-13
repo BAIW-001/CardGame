@@ -5,6 +5,7 @@ public class Block : MonoBehaviour, IPointerDownHandler
 {
     public GameObject card;
     public GameObject SummonBlock; // 高亮标识
+    public GameObject AttackBlock;
 
     public void OnPointerDown(PointerEventData eventData)
     {
