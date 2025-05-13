@@ -5,40 +5,50 @@ echo 当前目录：%cd%
 echo.
 set /p msg=请输入提交说明（例如：修复bug/新增功能）：
 
-rem 获取原始系统日期与时间
-for /f "tokens=1-3 delims=-/ " %%a in ("%date%") do (
-    set d1=%%a
-    set d2=%%b
-    set d3=%%c
+rem === 获取系统日期 ===
+for /f "tokens=1-3 delims=-/." %%a in ('echo %date%') do (
+    set part1=%%a
+    set part2=%%b
+    set part3=%%c
 )
 
-rem 判断哪一项是年份（四位数）
-if %d1% gtr 999 (
-    set yyyy=%d1%
-    set mm=%d2%
-    set dd=%d3%
-) else if %d3% gtr 999 (
-    set yyyy=%d3%
-    set mm=%d2%
-    set dd=%d1%
+rem === 判断哪一项是年份 ===
+if %part1% GTR 1900 (
+    set yyyy=%part1%
+    set mm=%part2%
+    set dd=%part3%
+) else if %part3% GTR 1900 (
+    set yyyy=%part3%
+    set mm=%part2%
+    set dd=%part1%
 ) else (
-    set yyyy=%d2%
-    set mm=%d1%
-    set dd=%d3%
+    set yyyy=%part2%
+    set mm=%part1%
+    set dd=%part3%
 )
 
-rem 获取小时和分钟（24小时制，避免 PM/AM 问题）
-for /f "tokens=1,2 delims=: " %%a in ("%time%") do (
+rem === 去掉前导空格 ===
+set yyyy=%yyyy: =%
+set mm=%mm: =%
+set dd=%dd: =%
+
+rem === 补零 ===
+if 1%mm% LSS 110 set mm=0%mm%
+if 1%dd% LSS 110 set dd=0%dd%
+
+rem === 获取时间并格式化为 24 小时制 ===
+for /f "tokens=1-2 delims=: " %%a in ('echo %time%') do (
     set hh=%%a
     set min=%%b
 )
 
-rem 格式化时间（补零）
+rem === 去掉前导空格 & 补零 ===
+set hh=%hh: =%
+set min=%min: =%
 if 1%hh% LSS 110 set hh=0%hh%
-if 1%mm% LSS 110 set mm=0%mm%
-if 1%dd%  LSS 110 set dd=0%dd%
 if 1%min% LSS 110 set min=0%min%
 
+rem === 拼接时间戳 ===
 set timestamp=%yyyy%-%mm%-%dd%_%hh%:%min%
 echo 当前时间戳: %timestamp%
 
